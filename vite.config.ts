@@ -1,6 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+// This config runs in Node. Declared locally so we don't add @types/node to the
+// app's tsconfig (which would leak Node globals into browser/worker source).
+declare const process: { env: Record<string, string | undefined> };
+
 // Tauri expects a fixed port and looks at TAURI_* env vars during `tauri dev`.
 const host = process.env.TAURI_DEV_HOST;
 
