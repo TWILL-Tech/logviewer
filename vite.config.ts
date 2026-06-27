@@ -5,6 +5,9 @@ import react from "@vitejs/plugin-react";
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
+  // Pages serves a project site at /logviewer/; desktop + dev use "/".
+  // The Pages workflow sets PAGES_BASE=/logviewer/.
+  base: process.env.PAGES_BASE || "/",
   plugins: [react()],
   // Prevent Vite from obscuring Rust errors and pin the dev server for Tauri.
   clearScreen: false,

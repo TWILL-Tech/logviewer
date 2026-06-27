@@ -7,6 +7,15 @@ numeric CSV. Primary workflow: keep it open, **drag-and-drop a CSV**, explore.
 Runs as a **Tauri desktop app** (native windows, file dialogs, file
 associations) and also as a plain web app in a browser for fast iteration.
 
+## Use it
+
+- **Web (always latest):** https://twill-tech.github.io/logviewer/ — auto-deployed
+  from `main` by `.github/workflows/pages.yml`. Just open it and drag in a CSV.
+- **Desktop installers:** https://github.com/TWILL-Tech/logviewer/releases/latest —
+  built for Windows/macOS/Linux by `.github/workflows/release.yml`. Push a tag
+  (`git tag v0.1.0 && git push --tags`) to cut a versioned release, or run the
+  workflow manually for a rolling `nightly` build.
+
 ## Features
 
 - **Fluid pan/zoom** at scale (60s @ 1kHz × 10–30 columns ≈ 1.8M points).
