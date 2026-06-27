@@ -1,0 +1,404 @@
+:root {
+  /* Dark is the base theme; light is applied via prefers-color-scheme below. */
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel2: #1c2230;
+  --border: #2a3343;
+  --text: #c9d1d9;
+  --muted: #8b949e;
+  --accent: #2f81f7;
+  /* Chart (uPlot) colors, read from JS at render time. */
+  --axis: #9aa4b2;
+  --grid: rgba(148, 163, 184, 0.1);
+  --tick: rgba(148, 163, 184, 0.25);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f8fa;
+    --panel: #ffffff;
+    --panel2: #eef1f5;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --muted: #656d76;
+    --accent: #0969da;
+    --axis: #57606a;
+    --grid: rgba(31, 35, 40, 0.09);
+    --tick: rgba(31, 35, 40, 0.22);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  overflow: hidden;
+}
+
+button {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 9px;
+  cursor: pointer;
+  font-size: 12px;
+}
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+input,
+select {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+/* ---- Layout ---- */
+.lv-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
+.lv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.lv-brand {
+  color: var(--accent);
+  margin-right: 6px;
+  letter-spacing: 0.3px;
+}
+.lv-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 2px;
+}
+.lv-status {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lv-recent {
+  position: relative;
+}
+.lv-recent summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel2);
+}
+.lv-recent ul {
+  position: absolute;
+  z-index: 30;
+  margin: 4px 0 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 180px;
+  max-height: 280px;
+  overflow: auto;
+}
+.lv-recent li {
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+
+.lv-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.lv-side {
+  width: 520px;
+  min-width: 320px;
+  max-width: 60%;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  resize: horizontal;
+  overflow: hidden;
+}
+
+.lv-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+/* ---- Empty state ---- */
+.lv-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  text-align: center;
+}
+.lv-empty h2 {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ---- Charts ---- */
+.lv-charts {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
+  gap: 6px;
+  overflow: auto;
+}
+.lv-overview {
+  flex: 0 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+}
+/* The current-viewport "window" highlighted on the overview timeline. */
+.lv-overview .u-select {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  box-sizing: border-box;
+}
+.lv-chart-panel {
+  flex: 1 1 0;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.lv-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.lv-chart-title {
+  font-size: 12px;
+  color: var(--muted);
+}
+.lv-chart-close {
+  padding: 0 7px;
+  line-height: 18px;
+}
+.lv-chart-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.lv-chart {
+  width: 100%;
+}
+
+/* ---- Series table ---- */
+.lv-series {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.lv-series-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.lv-filter {
+  flex: 1;
+}
+.lv-series-scroll {
+  flex: 1;
+  overflow: auto;
+}
+.lv-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.lv-table th,
+.lv-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+.lv-table th {
+  position: sticky;
+  top: 0;
+  background: var(--panel2);
+  color: var(--muted);
+  font-weight: 600;
+  z-index: 1;
+}
+.lv-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.lv-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.lv-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lv-kind {
+  color: var(--muted);
+}
+.lv-row-const td {
+  color: var(--muted);
+  opacity: 0.7;
+}
+.lv-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.lv-swatch input[type="color"] {
+  position: absolute;
+  inset: -4px;
+  opacity: 0;
+  cursor: pointer;
+  padding: 0;
+  border: 0;
+}
+.lv-axis-btn {
+  padding: 1px 7px;
+  font-weight: 600;
+}
+
+/* ---- Annotations ---- */
+.lv-annotations {
+  border-top: 1px solid var(--border);
+  padding: 8px;
+  max-height: 180px;
+  overflow: auto;
+}
+.lv-annotations-head {
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.lv-annotations ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lv-annotations li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.lv-annotations li button {
+  margin-left: auto;
+  padding: 0 6px;
+}
+
+/* ---- Tooltip ---- */
+.lv-tooltip {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--panel) 95%, transparent);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  min-width: 120px;
+}
+.lv-tip-x {
+  color: var(--muted);
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.lv-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lv-tip-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.lv-tip-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lv-tip-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ---- Drop overlay ---- */
+.lv-drop-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(47, 129, 247, 0.12);
+  border: 2px dashed var(--accent);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  color: var(--text);
+  z-index: 50;
+  pointer-events: none;
+}

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LogViewer</title>
+    <!-- Critical inline theme to avoid a flash before the bundle/CSS loads. -->
+    <style>
+      :root { color-scheme: light dark; }
+      html, body { margin: 0; height: 100%; background: #0d1117; }
+      @media (prefers-color-scheme: light) {
+        html, body { background: #f6f8fa; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

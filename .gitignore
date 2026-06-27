@@ -1,0 +1,14 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# sample data (regenerate with scripts/gen-sample.ts)
+sample/
+
+# editor / OS
+.DS_Store
+*.log
