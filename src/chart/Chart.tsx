@@ -89,6 +89,11 @@ export function Chart({ chartId, syncKey, height }: Props) {
   const modelRef = useRef<ChartModel | null>(null);
   const primaryIdxRef = useRef<Record<string, number>>({});
 
+  // Series-highlight state: the currently-emphasized series index and the base
+  // stroke width we boosted it from (so we can restore it on un-highlight).
+  const hlIdxRef = useRef<number | null>(null);
+  const hlBaseWidthRef = useRef(0);
+
   const series = useStore((s) => s.series);
   const datasets = useStore((s) => s.datasets);
   const view = useStore((s) => s.view);
@@ -246,12 +251,28 @@ export function Chart({ chartId, syncKey, height }: Props) {
     yFallback.current = window.setTimeout(() => settleY(targetY, targetYR), Y_ANIM_MS + 80);
   }
 
+  // Emphasize the hovered series by thickening its own stroke, leaving every
+  // other series untouched at its normal appearance — a true highlight, not a
+  // dim-the-rest. (~2.4x base width, so the boost is obvious at any base.)
+  const HIGHLIGHT_WIDTH_MUL = 2.4;
+
   function applyHighlight(key: string | null) {
     const u = uplotRef.current;
     if (!u) return;
     const idx = key != null ? primaryIdxRef.current[key] : undefined;
-    // setSeries(null, {focus:true}) clears focus; an index focuses that series.
-    u.setSeries(idx ?? null, { focus: true } as uPlot.Series);
+
+    // Restore the previously-highlighted series to its base width.
+    if (hlIdxRef.current != null && u.series[hlIdxRef.current]) {
+      u.series[hlIdxRef.current].width = hlBaseWidthRef.current;
+    }
+    hlIdxRef.current = null;
+
+    if (idx != null && u.series[idx]) {
+      hlBaseWidthRef.current = (u.series[idx].width as number) ?? 1.25;
+      u.series[idx].width = hlBaseWidthRef.current * HIGHLIGHT_WIDTH_MUL;
+      hlIdxRef.current = idx;
+    }
+    u.redraw();
   }
 
   function scheduleRefresh() {
@@ -390,9 +411,6 @@ export function Chart({ chartId, syncKey, height }: Props) {
       axes,
       series: model.series,
       bands: model.bands,
-      // Dim non-highlighted series when a table row is hovered (no pointer-prox
-      // auto-focus, so chart hovering doesn't dim anything).
-      focus: { alpha: 0.28 },
       cursor: {
         sync: { key: syncKey },
         drag: { x: false, y: false },
@@ -406,8 +424,10 @@ export function Chart({ chartId, syncKey, height }: Props) {
     uplotRef.current = u;
 
     // Animate Y to the new target (skipped/instant when locked), then restore
-    // any active highlight onto the fresh instance.
+    // any active highlight onto the fresh instance. The new uPlot has fresh
+    // series objects, so drop the stale highlighted-index before re-applying.
     applyY(model, true);
+    hlIdxRef.current = null;
     applyHighlight(useStore.getState().highlightKey);
 
     // Wheel-zoom + drag-pan driving the shared viewport.
