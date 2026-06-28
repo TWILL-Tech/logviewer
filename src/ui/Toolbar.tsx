@@ -16,6 +16,8 @@ interface Props {
 export function Toolbar({ chartsRef }: Props) {
   const addChart = useStore((s) => s.addChart);
   const resetView = useStore((s) => s.resetView);
+  const lockY = useStore((s) => s.lockY);
+  const setLockY = useStore((s) => s.setLockY);
   const datasets = useStore((s) => s.datasets);
   const series = useStore((s) => s.series);
   const view = useStore((s) => s.view);
@@ -75,6 +77,14 @@ export function Toolbar({ chartsRef }: Props) {
       <button onClick={onOpen}>Open…</button>
       <button onClick={addChart} disabled={!fullExtent}>+ Chart</button>
       <button onClick={resetView} disabled={!fullExtent}>Reset zoom</button>
+      <button
+        onClick={() => setLockY(!lockY)}
+        disabled={!fullExtent}
+        className={lockY ? "lv-toggle-on" : ""}
+        title="Lock the Y axes so hiding/showing series doesn't rescale them"
+      >
+        {lockY ? "🔒 Y locked" : "🔓 Lock Y"}
+      </button>
       <span className="lv-sep" />
       <button onClick={onCopyImg} disabled={!fullExtent}>Copy image</button>
       <button onClick={onSaveImg} disabled={!fullExtent}>Save image</button>

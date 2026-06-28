@@ -20,6 +20,8 @@ export interface ChartModel {
   usesRight: boolean;
   /** Changes only when the uPlot structure must be rebuilt. */
   structureKey: string;
+  /** Logical series key -> its primary (line) uPlot series index, for highlighting. */
+  primaryIndexByKey: Record<string, number>;
 }
 
 const TRANSPARENT = "rgba(0,0,0,0)";
@@ -86,6 +88,7 @@ export function buildChartData(
   let usesLeft = false;
   let usesRight = false;
   const structureParts: string[] = [];
+  const primaryIndexByKey: Record<string, number> = {};
 
   const scatter = (si: number, src: Float32Array | undefined): (number | null)[] | Float32Array | undefined => {
     if (!src) return undefined;
@@ -115,6 +118,7 @@ export function buildChartData(
         tipColor: cfg.color,
         integral: cfg.kind !== "float",
       });
+      primaryIndexByKey[cfg.key] = series.length - 1;
       structureParts.push(`${cfg.key}|raw|${cfg.axis}`);
     } else if (slice.decimated && slice.avg) {
       // float: min/max band (hidden strokes) + avg line.
@@ -137,6 +141,7 @@ export function buildChartData(
         tipColor: cfg.color,
         integral: false,
       });
+      primaryIndexByKey[cfg.key] = series.length - 1;
       structureParts.push(`${cfg.key}|favg|${cfg.axis}`);
     } else if (slice.decimated) {
       // integral: min/max envelope, max as the labeled line.
@@ -153,6 +158,7 @@ export function buildChartData(
         tipColor: cfg.color,
         integral: true,
       });
+      primaryIndexByKey[cfg.key] = series.length - 1;
       const minIdx = data.length;
       data.push(scatter(si, slice.min) as number[]);
       series.push({ label: `${cfg.name}.min`, scale: sc, stroke: cfg.color, width: 1, points: { show: false }, dash: [2, 3] } as uPlot.Series);
@@ -168,5 +174,6 @@ export function buildChartData(
     usesLeft,
     usesRight,
     structureKey: structureParts.join(";"),
+    primaryIndexByKey,
   };
 }

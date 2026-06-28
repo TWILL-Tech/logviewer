@@ -20,6 +20,37 @@ interface Props {
   height: number;
 }
 
+type ChartModel = ReturnType<typeof buildChartData>;
+type Range = [number, number];
+
+const Y_ANIM_MS = 200;
+
+/** Min/max of every series on a given scale, padded; null if no data. */
+function computeExtent(model: ChartModel, scaleKey: string): Range | null {
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 1; i < model.series.length; i++) {
+    if (model.series[i].scale !== scaleKey) continue;
+    const arr = model.data[i] as ArrayLike<number | null> | undefined;
+    if (!arr) continue;
+    for (let j = 0; j < arr.length; j++) {
+      const v = arr[j];
+      if (v == null || Number.isNaN(v)) continue;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  if (min === Infinity) return null;
+  if (min === max) {
+    const d = Math.abs(min) * 0.05 || 1;
+    return [min - d, max + d];
+  }
+  const pad = (max - min) * 0.08;
+  return [min - pad, max + pad];
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
 // Chart colors are pulled from CSS variables so they follow the system theme.
 function themeColors() {
   const cs = getComputedStyle(document.documentElement);
@@ -46,11 +77,24 @@ export function Chart({ chartId, syncKey, height }: Props) {
   const fullRef = useRef<Extent | null>(null);
   const annRef = useRef(useStore.getState().annotations);
 
+  // Y-range control (lock + animation). dispY/dispYR are the currently shown
+  // ranges that the scale range fns return; we tween them toward targets.
+  const dispY = useRef<Range | null>(null);
+  const dispYR = useRef<Range | null>(null);
+  const lockedY = useRef<Range | null>(null);
+  const lockedYR = useRef<Range | null>(null);
+  const lockYRef = useRef(false);
+  const yAnim = useRef(0);
+  const yFallback = useRef(0);
+  const modelRef = useRef<ChartModel | null>(null);
+  const primaryIdxRef = useRef<Record<string, number>>({});
+
   const series = useStore((s) => s.series);
   const datasets = useStore((s) => s.datasets);
   const view = useStore((s) => s.view);
   const fullExtent = useStore((s) => s.fullExtent);
   const annotations = useStore((s) => s.annotations);
+  const lockY = useStore((s) => s.lockY);
 
   const configs = useMemo(
     () => series.filter((s) => s.chartId === chartId && s.visible),
@@ -114,15 +158,101 @@ export function Chart({ chartId, syncKey, height }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveView?.xMin, effectiveView?.xMax, configSig, timeName]);
 
+  // Lock Y: capture the current ranges when locking; re-autorange when unlocking.
+  useEffect(() => {
+    lockYRef.current = lockY;
+    if (lockY) {
+      lockedY.current = dispY.current;
+      lockedYR.current = dispYR.current;
+    } else {
+      lockedY.current = null;
+      lockedYR.current = null;
+      if (modelRef.current) applyY(modelRef.current, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockY]);
+
+  // Highlight the series hovered in the table (transient store subscription so
+  // this doesn't re-render or re-query the chart).
+  useEffect(() => {
+    let last: string | null = useStore.getState().highlightKey;
+    applyHighlight(last);
+    return useStore.subscribe((st) => {
+      if (st.highlightKey === last) return;
+      last = st.highlightKey;
+      applyHighlight(last);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Teardown.
   useEffect(() => {
     return () => {
       cancelAnimationFrame(rafId.current);
+      cancelAnimationFrame(yAnim.current);
       clearTimeout(timeoutId.current);
+      clearTimeout(yFallback.current);
       uplotRef.current?.destroy();
       uplotRef.current = null;
     };
   }, []);
+
+  // Compute Y targets for the model and move the displayed ranges toward them.
+  function applyY(model: ChartModel, animate: boolean) {
+    modelRef.current = model;
+    primaryIdxRef.current = model.primaryIndexByKey;
+    const targetY = lockYRef.current ? lockedY.current : computeExtent(model, "y");
+    const targetYR = lockYRef.current ? lockedYR.current : computeExtent(model, "yR");
+    animateYTo(targetY, targetYR, animate && !lockYRef.current);
+  }
+
+  // Push the current displayed ranges to uPlot. setScale (unlike redraw)
+  // actually recomputes the scale and repaints.
+  function pushY() {
+    const u = uplotRef.current;
+    if (!u) return;
+    if (dispY.current) u.setScale("y", { min: dispY.current[0], max: dispY.current[1] });
+    if (dispYR.current) u.setScale("yR", { min: dispYR.current[0], max: dispYR.current[1] });
+  }
+
+  function settleY(targetY: Range | null, targetYR: Range | null) {
+    cancelAnimationFrame(yAnim.current);
+    clearTimeout(yFallback.current);
+    if (targetY) dispY.current = targetY;
+    if (targetYR) dispYR.current = targetYR;
+    pushY();
+  }
+
+  function animateYTo(targetY: Range | null, targetYR: Range | null, animate: boolean) {
+    cancelAnimationFrame(yAnim.current);
+    clearTimeout(yFallback.current);
+    const startY = dispY.current;
+    const startYR = dispYR.current;
+    if (!animate || (!startY && !startYR)) {
+      settleY(targetY, targetYR);
+      return;
+    }
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const k = Math.min(1, (now - t0) / Y_ANIM_MS);
+      const e = 1 - Math.pow(1 - k, 3); // ease-out cubic
+      if (targetY) dispY.current = startY ? [lerp(startY[0], targetY[0], e), lerp(startY[1], targetY[1], e)] : targetY;
+      if (targetYR) dispYR.current = startYR ? [lerp(startYR[0], targetYR[0], e), lerp(startYR[1], targetYR[1], e)] : targetYR;
+      pushY();
+      if (k < 1) yAnim.current = requestAnimationFrame(step);
+    };
+    yAnim.current = requestAnimationFrame(step);
+    // Guarantee the final range even if rAF is throttled (hidden/background tab).
+    yFallback.current = window.setTimeout(() => settleY(targetY, targetYR), Y_ANIM_MS + 80);
+  }
+
+  function applyHighlight(key: string | null) {
+    const u = uplotRef.current;
+    if (!u) return;
+    const idx = key != null ? primaryIdxRef.current[key] : undefined;
+    // setSeries(null, {focus:true}) clears focus; an index focuses that series.
+    u.setSeries(idx ?? null, { focus: true } as uPlot.Series);
+  }
 
   function scheduleRefresh() {
     // rAF gives smooth coalescing while visible; a timer fallback guarantees the
@@ -190,12 +320,18 @@ export function Chart({ chartId, syncKey, height }: Props) {
       rebuild(model, w, h);
     } else {
       uplotRef.current.setData(model.data);
+      applyY(model, false); // pan/zoom: snap Y instantly (no animation)
     }
   }
 
-  function rebuild(model: ReturnType<typeof buildChartData>, w: number, h: number) {
+  function rebuild(model: ChartModel, w: number, h: number) {
     uplotRef.current?.destroy();
     structureRef.current = model.structureKey;
+
+    // Seed displayed Y on the very first build so the first frame is correct.
+    // On later rebuilds dispY holds the previous range, so we animate from it.
+    if (!dispY.current) dispY.current = lockYRef.current ? lockedY.current : computeExtent(model, "y");
+    if (!dispYR.current) dispYR.current = lockYRef.current ? lockedYR.current : computeExtent(model, "yR");
 
     const tc = themeColors();
     const grid = { stroke: tc.grid, width: 1 };
@@ -246,12 +382,17 @@ export function Chart({ chartId, syncKey, height }: Props) {
             return vv ? [vv.xMin, vv.xMax] : [dMin, dMax];
           },
         },
-        y: { auto: true },
-        yR: { auto: true },
+        // We control Y ourselves via setScale (for lock + animation); auto:false
+        // so setData doesn't re-autorange behind our back.
+        y: { auto: false },
+        yR: { auto: false },
       },
       axes,
       series: model.series,
       bands: model.bands,
+      // Dim non-highlighted series when a table row is hovered (no pointer-prox
+      // auto-focus, so chart hovering doesn't dim anything).
+      focus: { alpha: 0.28 },
       cursor: {
         sync: { key: syncKey },
         drag: { x: false, y: false },
@@ -263,6 +404,11 @@ export function Chart({ chartId, syncKey, height }: Props) {
 
     const u = new uPlot(opts, model.data, containerRef.current!);
     uplotRef.current = u;
+
+    // Animate Y to the new target (skipped/instant when locked), then restore
+    // any active highlight onto the fresh instance.
+    applyY(model, true);
+    applyHighlight(useStore.getState().highlightKey);
 
     // Wheel-zoom + drag-pan driving the shared viewport.
     attachZoomPan(u, {

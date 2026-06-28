@@ -31,6 +31,7 @@ export function SeriesTable() {
   const setColor = useStore((s) => s.setColor);
   const setAxis = useStore((s) => s.setAxis);
   const moveToChart = useStore((s) => s.moveToChart);
+  const setHighlight = useStore((s) => s.setHighlight);
 
   const [filter, setFilter] = useState("");
   const [sort, setSort] = useState<SortKey>("name");
@@ -141,7 +142,12 @@ export function SeriesTable() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.key} className={r.constant ? "lv-row-const" : ""}>
+              <tr
+                key={r.key}
+                className={r.constant ? "lv-row-const" : ""}
+                onMouseEnter={() => setHighlight(r.key)}
+                onMouseLeave={() => setHighlight(null)}
+              >
                 <td>
                   <input
                     type="checkbox"

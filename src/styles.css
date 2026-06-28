@@ -63,6 +63,10 @@ button:disabled {
   opacity: 0.4;
   cursor: default;
 }
+button.lv-toggle-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel2));
+}
 
 input,
 select {
@@ -297,6 +301,9 @@ select {
 .lv-row-const td {
   color: var(--muted);
   opacity: 0.7;
+}
+.lv-table tbody tr:hover {
+  background: var(--panel2);
 }
 .lv-swatch {
   display: inline-block;

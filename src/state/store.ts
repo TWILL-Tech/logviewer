@@ -55,6 +55,11 @@ interface AppState {
   /** Signature of the most recently loaded dataset (for persistence keying). */
   signature: string | null;
 
+  /** Transient UI: series currently hovered in the table (highlighted in charts). */
+  highlightKey: string | null;
+  /** When true, hiding/showing series does not recompute the Y axes. */
+  lockY: boolean;
+
   addDataset: (meta: DatasetMeta) => void;
   removeDataset: (datasetId: number) => void;
   toggleVisible: (key: string) => void;
@@ -66,6 +71,8 @@ interface AppState {
   removeChart: (chartId: string) => void;
   setView: (view: Extent | null) => void;
   resetView: () => void;
+  setHighlight: (key: string | null) => void;
+  setLockY: (v: boolean) => void;
   addAnnotation: (a: Omit<Annotation, "id">) => void;
   removeAnnotation: (id: string) => void;
 }
@@ -86,6 +93,8 @@ export const useStore = create<AppState>((set) => ({
   fullExtent: null,
   annotations: [],
   signature: null,
+  highlightKey: null,
+  lockY: false,
 
   addDataset: (meta) => {
     const styles = assignStyles(meta.channels);
@@ -207,6 +216,8 @@ export const useStore = create<AppState>((set) => ({
 
   setView: (view) => set({ view }),
   resetView: () => set({ view: null }),
+  setHighlight: (key) => set({ highlightKey: key }),
+  setLockY: (v) => set({ lockY: v }),
 
   addAnnotation: (a) =>
     set((st) => persist(st, {
