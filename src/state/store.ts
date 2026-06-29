@@ -97,7 +97,11 @@ export const useStore = create<AppState>((set) => ({
   lockY: false,
 
   addDataset: (meta) => {
-    const styles = assignStyles(meta.channels);
+    const isDark =
+      typeof window !== "undefined" && window.matchMedia
+        ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        : true; // dark is the base theme
+    const styles = assignStyles(meta.channels, isDark);
     const saved = loadLayout(meta.signature);
 
     // Map saved per-channel config by channel name (robust to id changes).

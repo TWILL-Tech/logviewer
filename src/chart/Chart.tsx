@@ -24,6 +24,7 @@ type ChartModel = ReturnType<typeof buildChartData>;
 type Range = [number, number];
 
 const Y_ANIM_MS = 200;
+const HIGHLIGHT_WIDTH_MUL = 2.4;
 
 /** Min/max of every series on a given scale, padded; null if no data. */
 function computeExtent(model: ChartModel, scaleKey: string): Range | null {
@@ -89,10 +90,12 @@ export function Chart({ chartId, syncKey, height }: Props) {
   const modelRef = useRef<ChartModel | null>(null);
   const primaryIdxRef = useRef<Record<string, number>>({});
 
-  // Series-highlight state: the currently-emphasized series index and the base
-  // stroke width we boosted it from (so we can restore it on un-highlight).
-  const hlIdxRef = useRef<number | null>(null);
-  const hlBaseWidthRef = useRef(0);
+  // Series-highlight state. We emphasize a series by re-drawing it thicker and
+  // on top (an overlay), leaving the others untouched. Two sources feed it:
+  // hovering a row in the table (pinned) and the cursor nearing a trace on the
+  // chart (hover); the pinned one wins when both are set.
+  const hlPinnedIdx = useRef<number | null>(null);
+  const hlHoverIdx = useRef<number | null>(null);
 
   const series = useStore((s) => s.series);
   const datasets = useStore((s) => s.datasets);
@@ -251,28 +254,70 @@ export function Chart({ chartId, syncKey, height }: Props) {
     yFallback.current = window.setTimeout(() => settleY(targetY, targetYR), Y_ANIM_MS + 80);
   }
 
-  // Emphasize the hovered series by thickening its own stroke, leaving every
-  // other series untouched at its normal appearance — a true highlight, not a
-  // dim-the-rest. (~2.4x base width, so the boost is obvious at any base.)
-  const HIGHLIGHT_WIDTH_MUL = 2.4;
+  // The series index to emphasize: a pinned (table-hover) selection wins over
+  // the cursor-proximity hover.
+  function effectiveHlIdx(): number | null {
+    return hlPinnedIdx.current ?? hlHoverIdx.current;
+  }
 
+  // Table-row hover sets the pinned highlight.
   function applyHighlight(key: string | null) {
-    const u = uplotRef.current;
-    if (!u) return;
-    const idx = key != null ? primaryIdxRef.current[key] : undefined;
+    const next = key != null ? primaryIdxRef.current[key] ?? null : null;
+    if (next === hlPinnedIdx.current) return;
+    hlPinnedIdx.current = next;
+    uplotRef.current?.redraw();
+  }
 
-    // Restore the previously-highlighted series to its base width.
-    if (hlIdxRef.current != null && u.series[hlIdxRef.current]) {
-      u.series[hlIdxRef.current].width = hlBaseWidthRef.current;
-    }
-    hlIdxRef.current = null;
+  // Cursor proximity (from the tooltip plugin) sets the hover highlight.
+  function setHoverHighlight(idx: number | null) {
+    if (idx === hlHoverIdx.current) return;
+    hlHoverIdx.current = idx;
+    uplotRef.current?.redraw();
+  }
 
-    if (idx != null && u.series[idx]) {
-      hlBaseWidthRef.current = (u.series[idx].width as number) ?? 1.25;
-      u.series[idx].width = hlBaseWidthRef.current * HIGHLIGHT_WIDTH_MUL;
-      hlIdxRef.current = idx;
+  // Re-draw the emphasized series thicker and on top of everything else.
+  function drawHighlight(u: uPlot) {
+    const idx = effectiveHlIdx();
+    if (idx == null) return;
+    const s = u.series[idx];
+    if (!s || s.show === false) return;
+    const xs = u.data[0];
+    const ys = u.data[idx] as ArrayLike<number | null> | undefined;
+    if (!ys) return;
+    const dpr = window.devicePixelRatio || 1;
+    const scale = s.scale || "y";
+    const baseW = typeof s.width === "number" ? s.width : 1.25;
+    const ctx = u.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
+    ctx.clip();
+    ctx.lineWidth = baseW * HIGHLIGHT_WIDTH_MUL * dpr;
+    // uPlot wraps series.stroke into a function internally, so read the color we
+    // stashed on the series (tipColor) instead.
+    const tip = s as { tipColor?: string };
+    ctx.strokeStyle = tip.tipColor || (s as { _stroke?: string })._stroke || "#888";
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    let pen = false;
+    for (let i = 0; i < xs.length; i++) {
+      const yv = ys[i];
+      if (yv == null || Number.isNaN(yv)) {
+        pen = false;
+        continue;
+      }
+      const px = u.valToPos(xs[i] as number, "x", true);
+      const py = u.valToPos(yv, scale, true);
+      if (!pen) {
+        ctx.moveTo(px, py);
+        pen = true;
+      } else {
+        ctx.lineTo(px, py);
+      }
     }
-    u.redraw();
+    ctx.stroke();
+    ctx.restore();
   }
 
   function scheduleRefresh() {
@@ -417,17 +462,21 @@ export function Chart({ chartId, syncKey, height }: Props) {
         points: { size: 6 },
       },
       legend: { show: false },
-      plugins: [tooltipPlugin(timeName), annotationPlugin(() => annRef.current)],
+      plugins: [
+        tooltipPlugin(timeName, setHoverHighlight),
+        annotationPlugin(() => annRef.current),
+        { hooks: { draw: drawHighlight } },
+      ],
     };
 
     const u = new uPlot(opts, model.data, containerRef.current!);
     uplotRef.current = u;
 
     // Animate Y to the new target (skipped/instant when locked), then restore
-    // any active highlight onto the fresh instance. The new uPlot has fresh
-    // series objects, so drop the stale highlighted-index before re-applying.
+    // any active highlight onto the fresh instance.
     applyY(model, true);
-    hlIdxRef.current = null;
+    hlHoverIdx.current = null;
+    hlPinnedIdx.current = null;
     applyHighlight(useStore.getState().highlightKey);
 
     // Wheel-zoom + drag-pan driving the shared viewport.

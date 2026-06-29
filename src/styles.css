@@ -379,6 +379,13 @@ select {
   display: flex;
   align-items: center;
   gap: 6px;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+/* The trace nearest the cursor: emphasized so you can tell which line it is. */
+.lv-tip-row.lv-tip-near {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  font-weight: 700;
 }
 .lv-tip-swatch {
   width: 9px;
